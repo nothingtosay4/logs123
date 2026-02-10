@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/track", "destination": "/track.php" },
+    { "source": "/(.*)", "destination": "/index.php" }
+  ]
+}
