@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Сбор данных...</title>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: Arial;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="message">
+        <h1>⏳ Собираем данные...</h1>
+        <p>Пожалуйста, подождите</p>
+    </div>
+    
+    <script>
+        // URL вашего Google Apps Script
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUrT_3WxpCtrIpLaPXE7UK63W98nL0Mu2wjBmroXgC4oxHI_nkLte4nZUjeqPERFe6/exec'; // Замените на ваш URL
+        
+        // Получить параметры из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const ref = urlParams.get('ref') || 'direct';
+        
+        async function trackVisit() {
+            try {
+                // Получаем IP
+                const ipResponse = await fetch('https://api.ipify.org?format=json');
+                const ipData = await ipResponse.json();
+                
+                // Получаем геоданные
+                let geoData = {};
+                try {
+                    const geoResponse = await fetch(`https://ipapi.co/${ipData.ip}/json/`);
+                    geoData = await geoResponse.json();
+                } catch (e) {
+                    console.log('Не удалось получить геоданные');
+                }
+                
+                // Определяем устройство
+                const userAgent = navigator.userAgent;
+                let device = 'Компьютер';
+                if (/Android/.test(userAgent)) device = '📱 Android';
+                else if (/iPhone|iPad|iPod/.test(userAgent)) device = '📱 iOS';
+                else if (/Windows/.test(userAgent)) device = '💻 Windows';
+                else if (/Mac/.test(userAgent)) device = '🍎 MacOS';
+                
+                // Определяем VPN (простая проверка)
+                const isVPN = geoData.org ? 
+                    (geoData.org.toLowerCase().includes('vpn') || 
+                     geoData.org.toLowerCase().includes('proxy') ||
+                     geoData.org.toLowerCase().includes('hosting')) : false;
+                
+                // Отправляем данные в Google Таблицу
+                const params = new URLSearchParams({
+                    ref: ref,
+                    ip: ipData.ip,
+                    country: geoData.country_name || '',
+                    city: geoData.city || '',
+                    isp: geoData.org || '',
+                    vpn: isVPN,
+                    browser: navigator.userAgent.substring(0, 100),
+                    device: device,
+                    format: 'json'
+                });
+                
+                const response = await fetch(`${SCRIPT_URL}?${params}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('message').innerHTML = `
+                        <h1>✅ Данные собраны!</h1>
+                        <p>IP: ${ipData.ip}</p>
+                        <p>Метка: ${ref}</p>
+                        <p>Через 3 секунды страница закроется...</p>
+                    `;
+                    
+                    // Закрыть через 3 секунды
+                    setTimeout(() => {
+                        window.close();
+                        // Если окно не закрылось, покажем кнопку
+                        setTimeout(() => {
+                            document.getElementById('message').innerHTML += `
+                                <p><button onclick="window.close()" style="padding: 10px; background: white; color: black; border: none; border-radius: 5px; cursor: pointer;">
+                                    Закрыть окно
+                                </button></p>
+                            `;
+                        }, 1000);
+                    }, 3000);
+                } else {
+                    document.getElementById('message').innerHTML = `
+                        <h1>⚠️ Ошибка</h1>
+                        <p>Не удалось сохранить данные</p>
+                        <p>${result.error || 'Неизвестная ошибка'}</p>
+                        <button onclick="window.close()" style="padding: 10px; background: white; color: black; border: none; border-radius: 5px; cursor: pointer;">
+                            Закрыть
+                        </button>
+                    `;
+                }
+                
+            } catch (error) {
+                document.getElementById('message').innerHTML = `
+                    <h1>❌ Ошибка подключения</h1>
+                    <p>${error.message}</p>
+                    <button onclick="window.close()" style="padding: 10px; background: white; color: black; border: none; border-radius: 5px; cursor: pointer;">
+                        Закрыть
+                    </button>
+                `;
+            }
+        }
+        
+        // Запускаем при загрузке
+        document.addEventListener('DOMContentLoaded', trackVisit);
+    </script>
+</body>
+</html>
